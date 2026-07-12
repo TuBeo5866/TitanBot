@@ -118,7 +118,6 @@ export function setupPlayerHandler(client) {
         try {
             const guildData = getGuildMusicData(player.guildId);
 
-            // If loop is active, Riffy handles replaying — don't clean up or disconnect
             if (guildData.loop && guildData.loop !== 'none') {
                 return;
             }
