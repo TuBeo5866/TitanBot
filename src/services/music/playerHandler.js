@@ -117,6 +117,12 @@ export function setupPlayerHandler(client) {
     client.riffy.on('queueEnd', async (player) => {
         try {
             const guildData = getGuildMusicData(player.guildId);
+
+            // If loop is active, Riffy handles replaying — don't clean up or disconnect
+            if (guildData.loop && guildData.loop !== 'none') {
+                return;
+            }
+
             clearUpdateInterval(guildData);
 
             if (guildData.autoplay) {
