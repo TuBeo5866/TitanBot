@@ -4,7 +4,7 @@ import { ModerationService } from './moderationService.js';
 import { logger } from '../utils/logger.js';
 
 const getHoneypotKey = (guildId) => `guild:${guildId}:honeypot`;
-const HONEYPOT_IMAGE = 'https://honeypot.riskymh.dev/honeypot.png';
+const HONEYPOT_IMAGE = 'https://www.dropbox.com/scl/fi/ilr20lv5u3mlv7ebr1cbz/honey-pot.png?rlkey=9txrk7gvymb5vpi60q4rde697&st=juj7ew12&dl=1';
 
 export async function getHoneypotConfig(guildId) {
     try {
