@@ -1,0 +1,93 @@
+import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { getFromDb, setInDb } from '../utils/database/wrapper.js';
+import { ModerationService } from './moderationService.js';
+import { logger } from '../utils/logger.js';
+
+const getHoneypotKey = (guildId) => `guild:${guildId}:honeypot`;
+const HONEYPOT_IMAGE = 'https://honeypot.riskymh.dev/honeypot.png';
+
+export async function getHoneypotConfig(guildId) {
+    try {
+        const data = await getFromDb(getHoneypotKey(guildId), null);
+        return data || { channelId: null, enabled: false, banCount: 0 };
+    } catch (err) {
+        logger.error(`Failed to get honeypot config for ${guildId}:`, err);
+        return { channelId: null, enabled: false, banCount: 0 };
+    }
+}
+
+export async function setHoneypotConfig(guildId, config) {
+    try {
+        await setInDb(getHoneypotKey(guildId), config);
+        return true;
+    } catch (err) {
+        logger.error(`Failed to set honeypot config for ${guildId}:`, err);
+        return false;
+    }
+}
+
+export function buildHoneypotWarningEmbed(banCount = 0) {
+    return new EmbedBuilder()
+        .setColor(0xFF0000)
+        .setTitle('DO NOT SEND MESSAGES IN THIS CHANNEL')
+        .setDescription(
+            'This channel is used to catch spam bots and scammers.\n' +
+            'Any messages sent here will result in a **ban**.',
+        )
+        .setThumbnail(HONEYPOT_IMAGE);
+}
+
+export function buildHoneypotComponents(banCount = 0) {
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('honeypot_ban_count')
+            .setLabel(`🍯 Kicks: ${banCount}`)
+            .setStyle(ButtonStyle.Danger)
+            .setDisabled(true), 
+    );
+}
+
+export async function refreshHoneypotMessage(client, guildId) {
+    try {
+        const config = await getHoneypotConfig(guildId);
+        if (!config.channelId || !config.messageId) return;
+
+        const channel = client.channels.cache.get(config.channelId);
+        if (!channel) return;
+
+        const msg = await channel.messages.fetch(config.messageId).catch(() => null);
+        if (!msg) return;
+
+        await msg.edit({
+            embeds: [buildHoneypotWarningEmbed(config.banCount)],
+            components: [buildHoneypotComponents(config.banCount)],
+        });
+    } catch (err) {
+        logger.error(`Honeypot: failed to refresh warning message in guild ${guildId}:`, err);
+    }
+}
+
+
+export async function handleHoneypotMessage(message, client) {
+    const { guild, author } = message;
+    await message.delete().catch(() => null);
+    const botMember = guild.members.me;
+
+    try {
+        await ModerationService.banUser({
+            guild,
+            user: author,
+            moderator: botMember,
+            reason: 'Honeypot triggered — sent a message in a protected channel.',
+            deleteDays: 1,
+        });
+
+        logger.info(`Honeypot: banned ${author.tag} (${author.id}) in guild ${guild.id}`);
+        const config = await getHoneypotConfig(guild.id);
+        const newCount = (config.banCount || 0) + 1;
+        await setHoneypotConfig(guild.id, { ...config, banCount: newCount });
+        await refreshHoneypotMessage(client, guild.id);
+    } catch (err) {
+        logger.error(`Honeypot: failed to ban ${author.tag} in guild ${guild.id}:`, err);
+    }
+}
