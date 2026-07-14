@@ -97,13 +97,18 @@ export default {
                     ],
                 });
 
-            } else if (sub === 'method') {
-                const action = interaction.options.getString('action');
-                const current = await getHoneypotConfig(guildId);
-
-                if (!current.channelId || !current.enabled) {
-                    throw new TitanBotError('Not configured', ErrorTypes.VALIDATION, 'Set up a honeypot channel first with `/honeypot set`.');
-                }
+                } else if (sub === 'method') {
+                    const owners = (process.env.OWNER_IDS || '').split(',').map(id => id.trim()).filter(Boolean);
+                    if (!owners.includes(interaction.user.id)) {
+                        throw new TitanBotError('Not bot owner', ErrorTypes.PERMISSION, 'Only the bot owner can change the honeypot method.');
+                    }
+                
+                    const action = interaction.options.getString('action');
+                    const current = await getHoneypotConfig(guildId);
+                
+                    if (!current.channelId || !current.enabled) {
+                        throw new TitanBotError('Not configured', ErrorTypes.VALIDATION, 'Set up a honeypot channel first with `/honeypot set`.');
+                    }
 
                 await setHoneypotConfig(guildId, { ...current, method: action });
                 await refreshHoneypotMessage(client, guildId);
